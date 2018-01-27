@@ -56,5 +56,7 @@ Ha pedig úgy érzed meghívnál egy sörre én nem ellenkezem. :)
 Paypal: https://www.paypal.me/dicsportal
 
 
+docker build -t digionline .
+docker run -it -e DIGI_USERNAME='' -e DIGI_PASSWORD='' -e URL='http://IP:1234' -p 1234:1234 digionline
 
 Jó szórakozást!

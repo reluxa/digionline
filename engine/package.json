@@ -7,11 +7,12 @@
     "jquery": "^3.1.1",
     "jsdom": "^9.9.1",
     "readline-sync": "^1.4.5",
-    "webpack": "^1.14.0"
+    "webpack": "^1.14.0",
+    "md5": "^2.2.1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/szabbenjamin/digionline"
+    "url": "https://github.com/reluxa/digionline"
   },
   "engines": {
     "node": ">=7.3.0"

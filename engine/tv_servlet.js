@@ -4,6 +4,7 @@
  */
 
 const http = require("http");
+const fs = require('fs');
 const log = require('./log.js');
 const DigiOnline = require('./digionline.js');
 const config = require('../config.js');
@@ -12,7 +13,17 @@ const digi = new DigiOnline();
 
 const server = http.createServer(function(request, response) {
     let get = decodeURIComponent(request.url.substring(1));
-    if (!isNaN(get)) {
+    if (get == "channels.m3u" || get == "epg.xml") {
+      fs.readFile("../" + get, function(err, data){
+        if(err){
+          response.statusCode = 500;
+          response.end(`Error getting the file: ${err}.`);
+        } else {
+	  response.setHeader('Content-type', 'text/plain; charset=utf-8' );
+          response.end(data);
+        }
+      });
+    } else if (!isNaN(get)) {
         digi.getDigiStreamUrl(get, response_url => {
             response.writeHead(302, {
                 'Location': response_url
@@ -20,8 +31,7 @@ const server = http.createServer(function(request, response) {
             digi.ticker();
             response.end();
         });
-    }
-    else {
+    } else {
         response.end();
     }
 });
