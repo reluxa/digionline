@@ -13,6 +13,8 @@ const epgClass = require('./epg');
 const Epg = new epgClass();
 const log = require('./log.js');
 const md5 = require('md5')
+const validUrl = require('valid-url');
+ 
 
 const config = require('../config.js');
 
@@ -116,7 +118,11 @@ class DigiOnline {
             const response = JSON.parse(body),
                 stream_url = response.stream_url;
 
-            log(`getDigiStreamUrl::${id}::${stream_url}`);
+            if (!validUrl.isUri(stream_url)) {
+		throw new Error("not valid url: " + stream_url);
+	    }
+
+	    log(`getDigiStreamUrl::${id}::${stream_url}`);
             cb(stream_url);
 
             this.lastChannelUrl = stream_url;
