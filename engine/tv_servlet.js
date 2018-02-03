@@ -9,6 +9,8 @@ const log = require('./log.js');
 const DigiOnline = require('./digionline.js');
 const config = require('../config.js');
 
+log('#################Program starting#################');
+
 const digi = new DigiOnline();
 
 const server = http.createServer(function(request, response) {

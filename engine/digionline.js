@@ -12,9 +12,7 @@ const fs = require('fs');
 const epgClass = require('./epg');
 const Epg = new epgClass();
 const log = require('./log.js');
-const md5 = require('md5')
-const validUrl = require('valid-url');
- 
+const md5 = require('md5');
 
 const config = require('../config.js');
 
@@ -25,6 +23,19 @@ const config = require('../config.js');
  * @type {number}
  */
 const maxTicking = 20;
+
+/**
+ * A konstans a bejelentkezési idővel számol. Ha csatornát próbálunk meg elindítani, de már ezt az
+ * időt túlléptük a rendszer újra be fog jelentkeztetni. (default=3h, milliseconds)
+ * @type {number}
+ */
+const loginTimeout = 3 * 60 * 60 * 1000; // 3h
+
+/**
+ * Ebben az időpontban történt legutoljára tranzakció
+ * @type {number}
+ */
+let lastUpdate = 0;
 
 class DigiOnline {
     constructor() {
@@ -38,7 +49,7 @@ class DigiOnline {
         // legutóbbi csatorna url-je
         this.lastChannelUrl;
 
-
+        this.reTryCounter = 0;
         this.tickerCounter = 0;
         this.tickerSession;
 
@@ -52,8 +63,23 @@ class DigiOnline {
      * Elvégzi a bejelentkezést, lekéri a bejelentkezéshez használt tokent és androidos eszközként regisztrálja servletünket
      * Ha mindez sikeresen megtörtént meghívja a cb-et
      * @param {callback} cb
+     * @param {boolean} forceLogin
      */
-    login(cb) {
+    login(cb, forceLogin = false) {
+        if (!forceLogin) {
+            /**
+             * Abban az esetben ha a bejelentkezés a loginTimeout-on belül megtörtént
+             * nem kísérlünk meg újabb bejelentkezést feleslegesen
+             * @type {number}
+             */
+            const idleTime = (new Date()).getTime() - lastUpdate;
+            if (idleTime < loginTimeout) {
+                cb();
+                return;
+            }
+        }
+        lastUpdate = (new Date()).getTime();
+
         log('login...');
         const loginUrl = 'http://online.digi.hu/api/user/registerUser?_content_type=text%2Fjson&pass=:pass&platform=android&user=:email';
         const deviceReg = 'http://online.digi.hu/api/devices/registerPCBrowser?_content_type=text%2Fjson&dma=chrome&dmo=63&h=:hash&i=A5F0F867-B1A0-474A-BF32-938748A251B5&o=android&pass=:pass&platform=android&user=:email';
@@ -108,25 +134,43 @@ class DigiOnline {
      * Meghívásakor lekéri az aktuális m3u fájlt a digi szerveréről a lejátszáshoz, callback-ben beállítja a stream url-t
      * @param {Number} id
      * @param {callback} cb
+     * @param {boolean} forceLogin
      */
-    getDigiStreamUrl(id, cb) {
-        const streamUrl = 'http://online.digi.hu/api/streams/getStream?_content_type=text%2Fjson&action=getStream&h=:hash&i=:deviceId&id_stream=:streamId&platform=android';
-        request.get(streamUrl
+    getDigiStreamUrl(id, cb, forceLogin = false) {
+        this.login(() => {
+            const streamUrl = 'http://online.digi.hu/api/streams/getStream?_content_type=text%2Fjson&action=getStream&h=:hash&i=:deviceId&id_stream=:streamId&platform=android';
+            request.get(streamUrl
                 .replace(':hash', this.loginHash)
                 .replace(':deviceId', this.deviceId)
                 .replace(':streamId', id), (e, r, body) => {
-            const response = JSON.parse(body),
-                stream_url = response.stream_url;
+                const response = JSON.parse(body),
+                    stream_url = response.stream_url;
 
-            if (!validUrl.isUri(stream_url)) {
-		throw new Error("not valid url: " + stream_url);
-	    }
+                log(`getDigiStreamUrl::${id}::${stream_url}`);
 
-	    log(`getDigiStreamUrl::${id}::${stream_url}`);
-            cb(stream_url);
+                /**
+                 * Hibás válasz esetén megpróbáljuk újraindítani a lekérést
+                 */
+                request.get(stream_url, (err, resp, body) => {
+                    if (!err) {
+                        cb(stream_url);
+                        this.reTryCounter = 0;
+                    }
+                    else {
+                        log(`getDigiStreamUrl::invalidUri::reTry=${this.reTryCounter}`);
+                        if (this.reTryCounter < 5) {
+                            this.getDigiStreamUrl(id, cb, true);
+                            this.reTryCounter++;
+                        }
+                        else {
+                            throw 'Hibas valasz' + stream_url;
+                        }
+                    }
+                });
 
-            this.lastChannelUrl = stream_url;
-        });
+                this.lastChannelUrl = stream_url;
+            });
+        }, forceLogin);
     }
 
     /**
@@ -225,12 +269,12 @@ class DigiOnline {
          * XML legyártása
          */
         const writeXml = () => {
-            var content = Epg.getXmlContainer(epgChannels + epgPrograms);
+            let content = Epg.getXmlContainer(epgChannels + epgPrograms);
             fs.writeFileSync('../epg.xml', content);
             log('epg.xml ujrairva');
         };
 
-        let channel_list_temp = self.collectedChannels;
+        let channel_list_temp = self.collectedChannels.slice(0);
         let progress = setInterval(() => {
             // Ha elfogyott vége a dalnak, mentjük az xml-t
             if (channel_list_temp.length === 0) {
@@ -261,7 +305,7 @@ class DigiOnline {
                     }
                 });
             }
-        }, 2000);
+        }, 500);
 
         /**
          * XML újragyártása 12 óránként
