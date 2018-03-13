@@ -16,7 +16,7 @@ Fontos tudni, hogy e program nem hivatalos kiadás, működéséért garanciát 
 
 **Telepítés linux rendszerekre**
 
-Telepítsd a nodejs v7 futtatókörnyezetet a saját linux rendszeredre: https://nodejs.org/en/download/package-manager/
+Telepítsd a nodejs v7 vagy annál nagyobb futtatókörnyezetet a saját linux rendszeredre: https://nodejs.org/en/download/package-manager/
 
 Állj arra a mappára ahova a servletet telepíteni szeretnéd, majd:
 
@@ -49,11 +49,46 @@ Hibás működés esetén figyeld a log.log fájl tartalmát:
 
 `tail -f log.log`
 
+Ha szeretnéd szolgáltatásként felvenni systemctl-be akkor az alábbit tedd:
+
+`echo "[Unit]`
+
+ `Description=Digionline tv servlet app`
+ 
+` [Service]`
+
+` ExecStart=<az indításhoz bashscript .sh>`
+
+` Restart=always`
+
+` User=root`
+
+` Group=root`
+
+` Environment=PATH=/usr/bin:/usr/local/bin`
+
+` Environment=NODE_ENV=production`
+
+` WorkingDirectory=<engine folder helye>`
+
+` `
+
+` [Install]`
+
+` WantedBy=multi-user.target" > digionline.service`
+
+`cp digionline.service /etc/systemd/system`
+
+`systemctl start digionline`
+
+`systemctl enable digionline`
+
+
 Ha hibát találtál vedd fel a kapcsolatot velem facebookon, vagy vegyél fel hibajegyet itt, github-on.
 
 Ha pedig úgy érzed meghívnál egy sörre én nem ellenkezem. :) 
 
-Paypal: https://www.paypal.me/dicsportal
+Paypal, kapcsolatfelvétel: szabbenjamin #kukac gmail #pont com
 
 
 docker build -t digionline .

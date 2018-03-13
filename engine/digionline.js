@@ -22,7 +22,7 @@ const config = require('../config.js');
  * a konstansban megadott alkalommal küld egy üzenetet jelezvén, hogy még nézzük a csatornát.
  * @type {number}
  */
-const maxTicking = 20;
+const maxTicking = 45;
 
 /**
  * A konstans a bejelentkezési idővel számol. Ha csatornát próbálunk meg elindítani, de már ezt az
@@ -152,8 +152,47 @@ class DigiOnline {
                  * Hibás válasz esetén megpróbáljuk újraindítani a lekérést
                  */
                 request.get(stream_url, (err, resp, body) => {
+                    const findBestUrl       = typeof config.findBestUrl !== 'undefined' && config.findBestUrl || false,
+                          findLowestUrl     = typeof config.findLowestStream !== 'undefined' && config.findLowestStream || false,
+                          findMediumStream  = typeof config.findMediumStream !== 'undefined' && config.findMediumStream || false,
+                          specialUrl        = findBestUrl || findLowestUrl || findMediumStream;
+
                     if (!err) {
-                        cb(stream_url);
+                        // nem hagyományos urlt adunk vissza hanem direkt m3u stream url-t adunk
+                        if (specialUrl) {
+                            let streams = [];
+                            body.split('\n').forEach(element =>  {
+                                if (element.substring(0, 4) === 'http') {
+                                    streams.push(element);
+                                }
+                            });
+
+                            let spec_stream_url;
+
+                            // Kiválasztjuk a legjobb forrást
+                            if (findBestUrl) {
+                                spec_stream_url = streams.pop();
+                                log(`getDigiStreamUrl::mode_findBestUrl::${spec_stream_url}`);
+                            }
+                            // kiválasztjuk a közepes minőségű forrást
+                            else if (findMediumStream) {
+                                streams.reverse().pop();
+                                spec_stream_url = streams.pop();
+                                log(`getDigiStreamUrl::mode_findMediumStream::${spec_stream_url}`);
+                            }
+                            // kiválasztjuk a leggyengébb minőségű forrást
+                            else {
+                                spec_stream_url = streams.reverse().pop();
+                                log(`getDigiStreamUrl::mode_findLowestUrl::${spec_stream_url}`);
+                            }
+
+                            spec_stream_url = spec_stream_url.replace(spec_stream_url.substr(-14), '');
+
+                            cb(spec_stream_url);
+                        }
+                        else {
+                            cb(stream_url);
+                        }
                         this.reTryCounter = 0;
                     }
                     else {
@@ -187,7 +226,7 @@ class DigiOnline {
             if (this.tickerCounter > maxTicking) {
                 clearTimeout(this.tickerSession);
             }
-        }, 5 * 60 * 1000); // 5p
+        }, 11 * 60 * 1000); // 11p
     }
 
     /**
